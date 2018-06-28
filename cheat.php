@@ -49,25 +49,31 @@ if( isset( $_SERVER[ 'IGNORE_UPDATES' ] ) && (bool)$_SERVER[ 'IGNORE_UPDATES' ] 
 else
 {
 	$UpdateCheck = true;
-	$LocalScriptHash = sha1( trim( file_get_contents( __FILE__ ) ) );
+	$LocalScriptTime = 0;
+	$LocalScriptHash = '';
+	$LocalScriptHash = GetLocalScriptHash( $LocalScriptTime, $LocalScriptHash );
 	$RepositoryScriptETag = '';
+	$RepositoryScriptLastCheck = 0.0;
 	$RepositoryScriptHash = GetRepositoryScriptHash( $RepositoryScriptETag, $LocalScriptHash );
 }
 
-// 10/10 code
-$DisableColors = !(
-	( function_exists( 'sapi_windows_vt100_support' ) && sapi_windows_vt100_support( STDOUT ) ) ||
-	( function_exists( 'stream_isatty' ) && stream_isatty( STDOUT ) ) ||
-	( function_exists( 'posix_isatty' ) && posix_isatty( STDOUT ) )
-);
-
-if( isset( $_SERVER[ 'DISABLE_COLORS' ] ) )
-{
-	$DisableColors = (bool)$_SERVER[ 'DISABLE_COLORS' ];
-}
+$DisableColors = isset( $_SERVER[ 'DISABLE_COLORS' ] ) ? (bool)$_SERVER[ 'DISABLE_COLORS' ] : !IsColorSupported( );
+$COLORS_HINTS =
+[
+	'{normal}' => "\033[0m",
+	'{green}' => "\033[0;32m",
+	'{yellow}' => "\033[1;33m",
+	'{lightred}' => "\033[1;31m",
+	'{grey}' => "\033[0;36m",
+	'{background-blue}' => "\033[37;44m",
+];
+$GetANSISeqs = $DisableColors ? function( ) { return ''; } :
+	function( ) { global $COLORS_HINTS; return array_values( $COLORS_HINTS ); }
+;
 
 $GameVersion = 1;
 $WaitTime = 110;
+$ScanPlanetsTime = 5; // expected duration
 $ZonePaces = [];
 $OldScore = 0;
 $LastKnownPlanet = 0;
@@ -109,7 +115,7 @@ do
 {
 	$BestPlanetAndZone = GetBestPlanetAndZone( $ZonePaces, $WaitTime );
 }
-while( !$BestPlanetAndZone && sleep( 5 ) === 0 );
+while( !$BestPlanetAndZone && sleep( 1 ) === 0 );
 
 do
 {
@@ -171,13 +177,15 @@ do
 	$SkippedLagTime = curl_getinfo( $c, CURLINFO_TOTAL_TIME ) - curl_getinfo( $c, CURLINFO_STARTTRANSFER_TIME );
 	$SkippedLagTime -= fmod( $SkippedLagTime, 0.1 );
 	$LagAdjustedWaitTime = $WaitTime - $SkippedLagTime;
-	$WaitTimeBeforeFirstScan = 50 + ( 50 - $SkippedLagTime );
+	$WaitTimeBeforeFirstScan = $WaitTime - $ScanPlanetsTime - $SkippedLagTime;
 
 	if( $UpdateCheck )
 	{
-		if( $LocalScriptHash === $RepositoryScriptHash )
+		$LocalScriptHash = GetLocalScriptHash( $LocalScriptTime, $LocalScriptHash );
+		if( $PlanetCheckTime - $RepositoryScriptLastCheck > 1800 && $LocalScriptHash === $RepositoryScriptHash )
 		{
 			$RepositoryScriptHash = GetRepositoryScriptHash( $RepositoryScriptETag, $LocalScriptHash );
+			$RepositoryScriptLastCheck = $PlanetCheckTime;
 		}
 
 		if( $LocalScriptHash !== $RepositoryScriptHash )
@@ -253,7 +261,7 @@ do
 		);
 	}
 }
-while( true );
+while( !file_exists( __DIR__ . '/killswitch.txt' ) );
 
 function CheckGameVersion( $Data )
 {
@@ -507,10 +515,11 @@ function GetBestPlanetAndZone( &$ZonePaces, $WaitTime )
 	}
 
 	$Planets = $Planets[ 'response' ][ 'planets' ];
+	$TotalPlayers = 0;
 
 	foreach( $Planets as &$Planet )
 	{
-		$Planet[ 'sort_key' ] = 0;
+		// $Planet[ 'sort_key' ] = 0;
 
 		if( empty( $Planet[ 'state' ][ 'capture_progress' ] ) )
 		{
@@ -521,6 +530,7 @@ function GetBestPlanetAndZone( &$ZonePaces, $WaitTime )
 		{
 			$Planet[ 'state' ][ 'current_players' ] = 0;
 		}
+		$TotalPlayers += $Planet[ 'state' ][ 'current_players' ];
 
 		if( !isset( $ZonePaces[ $Planet[ 'id' ] ] ) )
 		{
@@ -552,7 +562,7 @@ function GetBestPlanetAndZone( &$ZonePaces, $WaitTime )
 		}
 
 		Msg(
-			'>> Planet {green}%3d{normal} - Captured: {green}%5s%%{normal} - High: {yellow}%2d{normal} - Medium: {yellow}%2d{normal} - Low: {yellow}%2d{normal} - Players: {yellow}%7s {green}(%s)',
+			'>> Planet {green}%3d{normal} - Captured: {green}%5s%%{normal} - High: {yellow}%2d{normal} - Medium: {yellow}%2d{normal} - Low: {yellow}%2d{normal} - Saliens: {yellow}%7s {green}(%s)',
 			PHP_EOL,
 			[
 				$Planet[ 'id' ],
@@ -579,11 +589,12 @@ function GetBestPlanetAndZone( &$ZonePaces, $WaitTime )
 				return $Planet;
 			}
 
-			$Planet[ 'sort_key' ] += (int)( $Planet[ 'state' ][ 'capture_progress' ] * 100 );
+			$Planet[ 'sort_key' ] = (int)( $Planet[ 'state' ][ 'capture_progress' ] * 100 );
 
 			if( $Planet[ 'low_zones' ] > 0 )
 			{
 				$Planet[ 'sort_key' ] += 99 - $Planet[ 'low_zones' ];
+				$Planet[ 'sort_key' ] %= 100;
 			}
 
 			if( $Planet[ 'medium_zones' ] > 0 )
@@ -597,6 +608,8 @@ function GetBestPlanetAndZone( &$ZonePaces, $WaitTime )
 			}
 		}
 	}
+
+	Msg( '>> Fighting Saliens Grand Intergalactic Total: {yellow}' . number_format( $TotalPlayers ) );
 
 	usort( $Planets, function( $a, $b )
 	{
@@ -808,35 +821,57 @@ function GetRepositoryScriptHash( &$RepositoryScriptETag, $LocalScriptHash )
 		$RepositoryScriptETag = $ETag[ 1 ];
 	}
 
-	return strlen( $Data ) > 0 ? sha1( trim( $Data ) ) : $LocalScriptHash;
+	return strlen( $Data ) > 0 ? sha1( $Data ) : $LocalScriptHash;
+}
+
+function GetLocalScriptHash( &$LocalScriptTime, $LocalScriptHash )
+{
+	clearstatcache( true, __FILE__ . '.sha1' );
+	$NewTime = filemtime( __FILE__ . '.sha1' );
+	if( $NewTime !== $LocalScriptTime )
+	{
+		$LocalScriptTime = $NewTime;
+		$LocalScriptHash = substr( ltrim( file_get_contents( __FILE__ . '.sha1' ) ), 0, 40);
+	}
+	return strlen( $LocalScriptHash ) != 40 ? sha1_file( __FILE__ ) : $LocalScriptHash;
+}
+
+function IsColorSupported( )
+{
+	if( defined( 'PHP_WINDOWS_VERSION_BUILD' ) )
+	{
+		return (
+			( function_exists( 'sapi_windows_vt100_support' ) && sapi_windows_vt100_support( STDOUT ) ) ||
+			( isset( $_SERVER[ 'ANSICON' ] ) && (bool)$_SERVER[ 'ANSICON' ] ) ||
+			( isset( $_SERVER[ 'ConEmuANSI' ] ) && $_SERVER[ 'ConEmuANSI' ] === 'ON' ) ||
+			( isset( $_SERVER[ 'TERM' ] ) && $_SERVER[ 'TERM' ] === 'xterm' )
+		);
+	}
+	else
+	{
+		if( !(	( function_exists( 'stream_isatty' ) && stream_isatty( STDOUT ) ) ||
+				( function_exists( 'posix_isatty' ) && posix_isatty( STDOUT ) ) ) )
+		{
+			$stat = fstat( STDOUT );
+
+			return isset( $stat[ 'mode' ] ) && ( $stat[ 'mode' ] & 0xF000 ) === 0x2000;
+		}
+		else
+		{
+			return true;
+		}
+	}
 }
 
 function Msg( $Message, $EOL = PHP_EOL, $printf = [] )
 {
-	global $DisableColors;
+	global $COLORS_HINTS, $GetANSISeqs;
 
-	$Message = str_replace(
-		[
-			'{normal}',
-			'{green}',
-			'{yellow}',
-			'{lightred}',
-			'{grey}',
-			'{background-blue}',
-		],
-		$DisableColors ? '' : [
-			"\033[0m",
-			"\033[0;32m",
-			"\033[1;33m",
-			"\033[1;31m",
-			"\033[0;36m",
-			"\033[37;44m",
-		],
-	$Message, $Count );
+	$Message = str_replace( array_keys( $COLORS_HINTS ), $GetANSISeqs( ), $Message, $Count );
 
-	if( $Count > 0 && !$DisableColors )
+	if( $Count > 0 )
 	{
-		$Message .= "\033[0m";
+		$Message .= $GetANSISeqs( )[0]; // gives '' or $COLORS_HINTS['{normal}']
 	}
 
 	$Message = '[' . date( 'H:i:s' ) . '] ' . $Message . $EOL;

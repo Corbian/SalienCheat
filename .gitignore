@@ -6,3 +6,14 @@ python/
 python.zip
 get-pip.py
 .vagrant
+#
+Dockerfile
+downloadphp.ps1
+downloadpython.ps1
+Procfile
+python-cheat.bat
+Vagrantfile
+cheat.py
+composer.json
+app.json
+cheat.bat
