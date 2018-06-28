@@ -170,7 +170,8 @@ do
 	);
 
 	$SkippedLagTime = curl_getinfo( $c, CURLINFO_TOTAL_TIME ) - curl_getinfo( $c, CURLINFO_STARTTRANSFER_TIME );
-	$SkippedLagTime -= fmod( $SkippedLagTime, 0.1 );
+	//$SkippedLagTime -= fmod( $SkippedLagTime, 0.1 );
+	$SkippedLagTime = (float)floor( $SkippedLagTime * 10 ) / 10;
 	$LagAdjustedWaitTime = $WaitTime - $SkippedLagTime;
 	$WaitTimeBeforeFirstScan = $WaitTime - $ScanPlanetsTime - $SkippedLagTime;
 
@@ -189,7 +190,7 @@ do
 		}
 	}
 
-	Msg( '   {grey}Waiting ' . number_format( $WaitTimeBeforeFirstScan, 3 ) . ' (+' . number_format( $SkippedLagTime, 3 ) . ' second lag) seconds before rescanning planets...' );
+	Msg( '   {grey}Waiting ' . number_format( $WaitTimeBeforeFirstScan, 3 ) . ' seconds before rescanning planets...' );
 
 	usleep( $WaitTimeBeforeFirstScan * 1000000 );
 
@@ -207,6 +208,8 @@ do
 
 		usleep( $LagAdjustedWaitTime * 1000000 );
 	}
+
+	Msg( '   {grey}This round lasted ' . number_format( microtime( true ) - $PlanetCheckTime + $SkippedLagTime, 3 ) . ' seconds including ' . number_format( $SkippedLagTime, 3 ) . ' seconds lag.' );
 
 	$Data = SendPOST( 'ITerritoryControlMinigameService/ReportScore', 'access_token=' . $Token . '&score=' . GetScoreForZone( $Zone ) . '&language=english' );
 
