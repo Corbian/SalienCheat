@@ -64,7 +64,7 @@ $COLORS_HINTS =
 	'{green}' => "\033[0;32m",
 	'{yellow}' => "\033[1;33m",
 	'{lightred}' => "\033[1;31m",
-	'{grey}' => "\033[0;36m",
+	'{teal}' => "\033[0;36m",
 	'{background-blue}' => "\033[37;44m",
 ];
 $GetANSISeqs = $DisableColors ? function( ) { return ''; } :
@@ -82,7 +82,7 @@ Msg( "{background-blue}Welcome to SalienCheat for SteamDB" );
 
 if( ini_get( 'precision' ) < 18 )
 {
-	Msg( '{grey}Fixed php float precision (was ' . ini_get( 'precision' ) . ')' );
+	Msg( '{teal}Fixed php float precision (was ' . ini_get( 'precision' ) . ')' );
 	ini_set( 'precision', '18' );
 }
 
@@ -190,7 +190,7 @@ do
 		}
 	}
 
-	Msg( '   {grey}Waiting ' . number_format( $WaitTimeBeforeFirstScan, 3 ) . ' seconds before rescanning planets...' );
+	Msg( '   {teal}Waiting ' . number_format( $WaitTimeBeforeFirstScan, 3 ) . ' seconds before rescanning planets...' );
 
 	usleep( $WaitTimeBeforeFirstScan * 1000000 );
 
@@ -204,12 +204,12 @@ do
 
 	if( $LagAdjustedWaitTime > 0 )
 	{
-		Msg( '   {grey}Waiting ' . number_format( $LagAdjustedWaitTime, 3 ) . ' remaining seconds before submitting score...' );
+		Msg( '   {teal}Waiting ' . number_format( $LagAdjustedWaitTime, 3 ) . ' remaining seconds before submitting score...' );
 
 		usleep( $LagAdjustedWaitTime * 1000000 );
 	}
 
-	Msg( '   {grey}This round lasted ' . number_format( microtime( true ) - $PlanetCheckTime + $SkippedLagTime, 3 ) . ' seconds including ' . number_format( $SkippedLagTime, 3 ) . ' seconds lag.' );
+	Msg( '   {teal}This round lasted ' . number_format( microtime( true ) - $PlanetCheckTime + $SkippedLagTime, 3 ) . ' seconds including ' . number_format( $SkippedLagTime, 3 ) . ' seconds lag.' );
 
 	$Data = SendPOST( 'ITerritoryControlMinigameService/ReportScore', 'access_token=' . $Token . '&score=' . GetScoreForZone( $Zone ) . '&language=english' );
 
@@ -388,7 +388,7 @@ function GetPlanetState( $Planet, &$ZonePaces, $WaitTime )
 			Msg( '{lightred}!! Unknown zone type: ' . $Zone[ 'type' ] );
 		}
 
-		$Cutoff = 0.99;
+		$Cutoff = $Zone[ 'difficulty' ] < 2 ? 0.90 : 0.99;
 
 		if( isset( $ZonePaces[ $Planet ][ $Zone[ 'zone_position' ] ] ) )
 		{
@@ -406,7 +406,7 @@ function GetPlanetState( $Planet, &$ZonePaces, $WaitTime )
 
 			$TimeDelta = array_sum( $DifferenceTimes ) / count( $DifferenceTimes );
 			$PaceCutoff = ( array_sum( $Differences ) / count( $Differences ) ) * $TimeDelta;
-			$Cutoff = 1.0 - max( 0.01, $PaceCutoff / 7 );
+			$Cutoff = 1.0 - max( 1.0 - $Cutoff, $PaceCutoff / 7 );
 			$PaceTime = $PaceCutoff > 0 ? ceil( ( 1 - $Zone[ 'capture_progress' ] ) / $PaceCutoff * $WaitTime ) : 1000;
 
 			if( $PaceCutoff > 0.015 )
