@@ -213,7 +213,7 @@ do
 
 	$Data = SendPOST( 'ITerritoryControlMinigameService/ReportScore', 'access_token=' . $Token . '&score=' . GetScoreForZone( $Zone ) . '&language=english' );
 
-	if( $Data[ 'eresult' ] == 93 )
+	if( empty( $Data[ 'response' ][ 'new_score' ] ) )
 	{
 		$LagAdjustedWaitTime = min( 10, round( $SkippedLagTime ) );
 
