@@ -76,6 +76,7 @@ $ZonePaces = [];
 $OldScore = 0;
 $LastKnownPlanet = 0;
 $BestPlanetAndZone = 0;
+$JZErrCount = 0;
 
 Msg( "{background-blue}Welcome to SalienCheat for SteamDB" );
 
@@ -153,11 +154,15 @@ do
 
 		$BestPlanetAndZone = 0;
 
-		sleep( 1 );
+		if( ++$JZErrCount > 2 )
+		{
+			sleep( 1 );
+		}
 
 		continue;
 	}
 
+	$JZErrCount = 0;
 	$Zone = $Zone[ 'response' ][ 'zone_info' ];
 
 	Msg(
