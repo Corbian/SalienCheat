@@ -988,7 +988,7 @@ function ExecuteRequest( $Method, $URL, $Data = [] )
 			}
 
 //			if( $EResult === 15 && substr( $Method, 33) === 'RepresentClan' )  // EResult.AccessDenied
-			if( $EResult === 11 ) // EResult.InvalidState
+			if( $EResult === 11 || $EResult === 27 ) // EResult.InvalidState || EResult.Expired
 			{
 				global $LastKnownPlanet;
 				$LastKnownPlanet = 0;
