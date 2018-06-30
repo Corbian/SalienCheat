@@ -148,7 +148,7 @@ do
 		}
 		else
 		{
-			Msg( 'SteamDB ClanID is ' . $Data[ 'response' ][ 'clan_info' ][ 'accountid' ] );
+			Msg( 'SteamDB ClanID is {teal}' . $Data[ 'response' ][ 'clan_info' ][ 'accountid' ] );
 		}
 
 		if( $Data[ 'response' ][ 'level' ] > 20 )
@@ -164,12 +164,15 @@ if( isset( $_SERVER[ 'PREFER_LOW_ZONES' ] ) )
 	$PreferLowZones = (bool)$_SERVER[ 'PREFER_LOW_ZONES' ];
 }
 
-Msg(
-	'PreferLowZones is ' . number_format( $PreferLowZones ) .
-	' - IgnoreUpdates is ' . number_format( !$UpdateCheck ) .
-	' - DisableColors is ' . number_format( $DisableColors ) .
-	' - Verbose is ' . number_format( $Verbose )
-);
+if( $Verbose )
+{
+	Msg(
+		'PreferLowZones is ' . number_format( $PreferLowZones ) .
+		' - IgnoreUpdates is ' . number_format( !$UpdateCheck ) .
+		' - DisableColors is ' . number_format( $DisableColors ) .
+		' - Verbose is ' . number_format( $Verbose )
+	);
+}
 
 do
 {
@@ -409,7 +412,7 @@ do
 		}
 		else
 		{
-			$LagAdjustedWaitTime = min( $ScanPlanetsTime, $SkippedLagTime );
+			$LagAdjustedWaitTime = min( $ScanPlanetsTime, ( $SkippedLagTime / 2 ) );
 		}
 
 		Msg( '{lightred}-- Time is out of sync, trying again in ' . number_format( $LagAdjustedWaitTime, 3 ) . ' seconds...' );
