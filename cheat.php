@@ -415,7 +415,7 @@ do
 		}
 		else
 		{
-			$LagAdjustedWaitTime = max( 1, min( 10, $SkippedLagTime ) );
+			$LagAdjustedWaitTime = max( 1, min( $ScanPlanetsTime, $SkippedLagTime ) );
 		}
 
 		Msg( '{lightred}-- Report score failed, trying again in ' . number_format( $LagAdjustedWaitTime, 3 ) . ' seconds...' );
@@ -876,8 +876,6 @@ function GetCurl( )
 
 function ExecuteRequest( $Method, $URL, $Data = [] )
 {
-	global $WaitTime;
-
 	$c = GetCurl( );
 
 	curl_setopt( $c, CURLOPT_URL, $URL );
@@ -914,6 +912,7 @@ function ExecuteRequest( $Method, $URL, $Data = [] )
 				if( substr( $Method, 33) === 'ReportScore' &&
 					preg_match( "/User joined zone [0-9]+ at ([0-9]+), and now it's ([0-9]+), which is too soon/", $ErrorMessage[ 0 ], $ErrorTimes ) === 1 )
 				{
+					global $WaitTime;
 					$ExtraTime = $WaitTime - ( intval( $ErrorTimes[2] ) - intval( $ErrorTimes[1] ) );
 				}
 			}
