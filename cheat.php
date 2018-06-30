@@ -3,6 +3,22 @@
 
 set_time_limit( 0 );
 
+$DisableColors = isset( $_SERVER[ 'DISABLE_COLORS' ] ) ? (bool)$_SERVER[ 'DISABLE_COLORS' ] : !IsColorSupported( );
+$COLORS_HINTS =
+[
+	'{normal}' => "\033[0m",
+	'{green}' => "\033[0;32m",
+	'{yellow}' => "\033[1;33m",
+	'{lightred}' => "\033[1;31m",
+	'{teal}' => "\033[0;36m",
+	'{background-blue}' => "\033[37;44m",
+];
+$GetANSISeqs = $DisableColors ? function( ) { return ''; } :
+	function( ) { global $COLORS_HINTS; return array_values( $COLORS_HINTS ); }
+;
+
+$Verbose = isset( $_SERVER[ 'VERBOSE' ] ) ? (bool)$_SERVER[ 'VERBOSE' ] : 0;
+
 if( !file_exists( __DIR__ . '/cacert.pem' ) )
 {
 	Msg( 'You forgot to download cacert.pem file' );
@@ -48,22 +64,6 @@ if( strlen( $Token ) !== 32 )
 	Msg( 'Failed to find your token. Verify token.txt' );
 	exit( 1 );
 }
-
-$DisableColors = isset( $_SERVER[ 'DISABLE_COLORS' ] ) ? (bool)$_SERVER[ 'DISABLE_COLORS' ] : !IsColorSupported( );
-$COLORS_HINTS =
-[
-	'{normal}' => "\033[0m",
-	'{green}' => "\033[0;32m",
-	'{yellow}' => "\033[1;33m",
-	'{lightred}' => "\033[1;31m",
-	'{teal}' => "\033[0;36m",
-	'{background-blue}' => "\033[37;44m",
-];
-$GetANSISeqs = $DisableColors ? function( ) { return ''; } :
-	function( ) { global $COLORS_HINTS; return array_values( $COLORS_HINTS ); }
-;
-
-$Verbose = isset( $_SERVER[ 'VERBOSE' ] ) ? (bool)$_SERVER[ 'VERBOSE' ] : 0;
 
 if( isset( $_SERVER[ 'IGNORE_UPDATES' ] ) && (bool)$_SERVER[ 'IGNORE_UPDATES' ] )
 {
