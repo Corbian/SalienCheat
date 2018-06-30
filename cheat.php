@@ -1073,7 +1073,11 @@ function IsThereAnyUpdate( &$LocalScriptHash, &$LocalScriptTime, &$RepositoryScr
 	{
 		$RepositoryScriptHash = GetRepositoryScriptHash( $RepositoryScriptETag, $LocalScriptHash );
 		$RepositoryScriptLastCheck = microtime( true );
-		Msg( '{teal}Local reference script hash is ' . substr( $LocalScriptHash, 0, 8 ) . ' - Repository script hash is ' . substr( $RepositoryScriptHash, 0, 8 ) );
+		Msg(
+			'Local reference script hash is {teal}' . substr( $LocalScriptHash, 0, 8 ) .
+			'{normal} - Repository script hash is {teal}' . substr( $RepositoryScriptHash, 0, 8 ) .
+			'{normal} - Next check after {teal}' . date( 'H:i', ( $RepositoryScriptLastCheck + 1800 ) )
+		);
 	}
 
 	if( $LocalScriptHash !== $RepositoryScriptHash )
