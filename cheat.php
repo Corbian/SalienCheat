@@ -27,8 +27,6 @@ if( ini_get( 'precision' ) < 18 )
 	ini_set( 'precision', '18' );
 }
 
-$Verbose = isset( $_SERVER[ 'VERBOSE' ] ) ? (bool)$_SERVER[ 'VERBOSE' ] : 0;
-
 if( !file_exists( __DIR__ . '/cacert.pem' ) )
 {
 	Msg( '{lightred}You forgot to download cacert.pem file' );
@@ -105,12 +103,11 @@ $GameVersion = 2;
 $WaitTime = 110;
 $ScanPlanetsTime = 5; // expected duration
 $FailSleep = 3;
-$ZonePaces = [];
 $OldScore = 0;
 $LastKnownPlanet = 0;
 $BestPlanetAndZone = 0;
 $JZErrCount = 0;
-$PreferLowZones = 0;
+$RandomizeZone = 0;
 
 do
 {
@@ -153,26 +150,13 @@ do
 
 		if( $Data[ 'response' ][ 'level' ] > 20 )
 		{
-			$PreferLowZones = 1;
+			$RandomizeZone = 1;
 		}
 	}
 }
 while( !isset( $Data[ 'response' ][ 'score' ] ) && sleep( $FailSleep ) === 0 );
 
-if( isset( $_SERVER[ 'PREFER_LOW_ZONES' ] ) )
-{
-	$PreferLowZones = (bool)$_SERVER[ 'PREFER_LOW_ZONES' ];
-}
-
-if( $Verbose )
-{
-	Msg(
-		'PreferLowZones is ' . number_format( $PreferLowZones ) .
-		' - IgnoreUpdates is ' . number_format( !$UpdateCheck ) .
-		' - DisableColors is ' . number_format( $DisableColors ) .
-		' - Verbose is ' . number_format( $Verbose )
-	);
-}
+Msg( 'IgnoreUpdates is ' . number_format( !$UpdateCheck ) . ' - DisableColors is ' . number_format( $DisableColors ) );
 
 do
 {
@@ -180,7 +164,7 @@ do
 	{
 		do
 		{
-			$BestPlanetAndZone = GetBestPlanetAndZone( $ZonePaces, $PreferLowZones, $WaitTime, $FailSleep );
+			$BestPlanetAndZone = GetBestPlanetAndZone( $RandomizeZone, $WaitTime, $FailSleep );
 		}
 		while( !$BestPlanetAndZone && sleep( $FailSleep ) === 0 );
 	}
@@ -389,7 +373,7 @@ do
 
 	do
 	{
-		$BestPlanetAndZone = GetBestPlanetAndZone( $ZonePaces, $PreferLowZones, $WaitTime, $FailSleep );
+		$BestPlanetAndZone = GetBestPlanetAndZone( $RandomizeZone, $WaitTime, $FailSleep );
 	}
 	while( !$BestPlanetAndZone && sleep( $FailSleep ) === 0 );
 
@@ -423,18 +407,18 @@ do
 			if( $LagAdjustedWaitTime > 0 )
 			{
 				$LagAdjustedWaitTime = min( $ScanPlanetsTime, $LagAdjustedWaitTime, $Data[ 'extratime' ] );
-		}
-		else
-		{
+			}
+			else
+			{
 				$LagAdjustedWaitTime = min( $ScanPlanetsTime, $SkippedLagTime, $Data[ 'extratime' ] );
 			}
 		}
 		else
 		{
-			$LagAdjustedWaitTime = min( $ScanPlanetsTime, $SkippedLagTime );
+			$LagAdjustedWaitTime = max( 1, min( 10, $SkippedLagTime ) );
 		}
 
-		Msg( '{lightred}-- Time is out of sync, trying again in ' . number_format( $LagAdjustedWaitTime, 3 ) . ' seconds...' );
+		Msg( '{lightred}-- Report score failed, trying again in ' . number_format( $LagAdjustedWaitTime, 3 ) . ' seconds...' );
 
 		usleep( $LagAdjustedWaitTime * 1000000 );
 
@@ -475,9 +459,9 @@ do
 			'{normal} - ETA: {green}' . $Hours . 'h ' . $Minutes . 'm (' . date_format( $Date , "jS H:i T" ) . ')'
 		);
 
-		if( $Data[ 'new_level' ] > 20 && !isset( $_SERVER[ 'PREFER_LOW_ZONES' ] ) )
+		if( $Data[ 'new_level' ] > 20 )
 		{
-			$PreferLowZones = 1;
+			$RandomizeZone = 1;
 		}
 	}
 }
@@ -584,7 +568,7 @@ function GetNameForDifficulty( $Zone )
 	return $Boss . $Difficulty;
 }
 
-function GetPlanetState( $Planet, &$ZonePaces, $PreferLowZones, $WaitTime )
+function GetPlanetState( $Planet, $RandomizeZone, $WaitTime )
 {
 	$Zones = SendGET( 'ITerritoryControlMinigameService/GetPlanet', 'id=' . $Planet . '&language=english' );
 
@@ -599,10 +583,6 @@ function GetPlanetState( $Planet, &$ZonePaces, $PreferLowZones, $WaitTime )
 	$MediumZones = 0;
 	$LowZones = 0;
 	$BossZones = [];
-	$ZoneMessages = [];
-
-	$ZonePaces[ $Planet ][ 'times' ][] = microtime( true );
-	$CurrentTimes = $ZonePaces[ $Planet ][ 'times' ];
 
 	foreach( $Zones as &$Zone )
 	{
@@ -627,52 +607,7 @@ function GetPlanetState( $Planet, &$ZonePaces, $PreferLowZones, $WaitTime )
 			$BossZones[] = $Zone;
 		}
 
-		// Skip zone 0 if it's not a boss, since it's currently not allowing joins on new planets.
-		if ( $Zone[ 'zone_position' ] == 0 )
-		{
-			continue;
-		}
-
-		$Cutoff = ( $Zone[ 'difficulty' ] < 2 && !$PreferLowZones ) ? 0.90 : 0.99;
-
-		if( isset( $ZonePaces[ $Planet ][ $Zone[ 'zone_position' ] ] ) )
-		{
-			$Paces = $ZonePaces[ $Planet ][ $Zone[ 'zone_position' ] ];
-			$Paces[] = $Zone[ 'capture_progress' ];
-			$Differences = [];
-			$DifferenceTimes = [];
-
-			for( $i = count( $Paces ) - 1; $i > 0; $i-- )
-			{
-				$TimeDelta = $CurrentTimes[ $i ] - $CurrentTimes[ $i - 1 ];
-				$DifferenceTimes[] = $TimeDelta;
-				$Differences[] = ( $Paces[ $i ] - $Paces[ $i - 1 ] ) / $TimeDelta;
-			}
-
-			$TimeDelta = array_sum( $DifferenceTimes ) / count( $DifferenceTimes );
-			$PaceCutoff = ( array_sum( $Differences ) / count( $Differences ) ) * $TimeDelta;
-			$Cutoff = 1.0 - max( 1.0 - $Cutoff, $PaceCutoff / 7 );
-			$PaceTime = $PaceCutoff > 0 ? ceil( ( 1 - $Zone[ 'capture_progress' ] ) / $PaceCutoff * $WaitTime ) : 1000;
-
-			if( $PaceCutoff > 0.015 )
-			{
-				$Minutes = floor( $PaceTime / 60 );
-				$Seconds = $PaceTime % 60;
-
-				$ZoneMessages[] =
-				[
-					'     Zone {yellow}%3d{normal} - Captured: {yellow}%5s%%{normal} - Cutoff: {yellow}%5s%%{normal} - Pace: {yellow}%6s%%{normal} - ETA: {yellow}%2dm %2ds{normal}',
-					[
-						$Zone[ 'zone_position' ],
-						number_format( $Zone[ 'capture_progress' ] * 100, 2 ),
-						number_format( $Cutoff * 100, 2 ),
-						'+' . number_format( $PaceCutoff * 100, 2 ),
-						$Minutes,
-						$Seconds,
-					]
-				];
-			}
-		}
+		$Cutoff = ( $Zone[ 'difficulty' ] < 2 && !$RandomizeZone ) ? 0.90 : 0.99;
 
 		// If a zone is close to completion, skip it because we want to avoid joining a completed zone
 		// Valve now rewards points, if the zone is completed before submission
@@ -693,30 +628,6 @@ function GetPlanetState( $Planet, &$ZonePaces, $PreferLowZones, $WaitTime )
 
 	unset( $Zone );
 
-	$ShouldTruncate = count( $ZonePaces[ $Planet ][ 'times' ] ) > 1;
-
-	foreach( $Zones as $Zone )
-	{
-		if( !isset( $ZonePaces[ $Planet ][ $Zone[ 'zone_position' ] ] ) )
-		{
-			$ZonePaces[ $Planet ][ $Zone[ 'zone_position' ] ] = [ $Zone[ 'capture_progress' ] ];
-		}
-		else
-		{
-			if( $ShouldTruncate )
-			{
-				array_shift( $ZonePaces[ $Planet ][ $Zone[ 'zone_position' ] ] );
-			}
-
-			$ZonePaces[ $Planet ][ $Zone[ 'zone_position' ] ][] = $Zone[ 'capture_progress' ];
-		}
-	}
-
-	if( $ShouldTruncate )
-	{
-		array_shift( $ZonePaces[ $Planet ][ 'times' ] );
-	}
-
 	if( !empty( $BossZones ) )
 	{
 		$CleanZones = $BossZones;
@@ -726,36 +637,37 @@ function GetPlanetState( $Planet, &$ZonePaces, $PreferLowZones, $WaitTime )
 		return false;
 	}
 
-	usort( $CleanZones, function( $a, $b ) use( $PreferLowZones )
+	if( $RandomizeZone )
 	{
-		if( $b[ 'difficulty' ] === $a[ 'difficulty' ] )
+		shuffle( $CleanZones );
+	}
+	else
+	{
+		usort( $CleanZones, function( $a, $b )
 		{
-			if( (int)( $a[ 'capture_progress' ] * 100 ) !== (int)( $b[ 'capture_progress' ] * 100 ) )
+			if( $b[ 'difficulty' ] === $a[ 'difficulty' ] )
 			{
-				return (int)( $a[ 'capture_progress' ] * 100000 ) - (int)( $b[ 'capture_progress' ] * 100000 );
+				if( (int)( $a[ 'capture_progress' ] * 100 ) !== (int)( $b[ 'capture_progress' ] * 100 ) )
+				{
+					return (int)( $a[ 'capture_progress' ] * 100000 ) - (int)( $b[ 'capture_progress' ] * 100000 );
+				}
+
+				return $b[ 'zone_position' ] - $a[ 'zone_position' ];
 			}
 
-			return $b[ 'zone_position' ] - $a[ 'zone_position' ];
-		}
-
-		if( $PreferLowZones )
-		{
-			return $a[ 'difficulty' ] - $b[ 'difficulty' ];
-		}
-
-		return $b[ 'difficulty' ] - $a[ 'difficulty' ];
-	} );
+			return $b[ 'difficulty' ] - $a[ 'difficulty' ];
+		} );
+	}
 
 	return [
 		'high_zones' => $HighZones,
 		'medium_zones' => $MediumZones,
 		'low_zones' => $LowZones,
-		'best_zone' => $CleanZones[ 0 ],
-		'messages' => $ZoneMessages,
+		'best_zone' => $CleanZones[ 0 ]
 	];
 }
 
-function GetBestPlanetAndZone( &$ZonePaces, $PreferLowZones, $WaitTime, $FailSleep )
+function GetBestPlanetAndZone( $RandomizeZone, $WaitTime, $FailSleep )
 {
 	$Planets = SendGET( 'ITerritoryControlMinigameService/GetPlanets', 'active_only=1&language=english' );
 
@@ -792,23 +704,14 @@ function GetBestPlanetAndZone( &$ZonePaces, $PreferLowZones, $WaitTime, $FailSle
 		}
 		$TotalPlayers += $Planet[ 'state' ][ 'current_players' ];
 
-		if( !isset( $ZonePaces[ $Planet[ 'id' ] ] ) )
-		{
-			$ZonePaces[ $Planet[ 'id' ] ] =
-			[
-				'times' => []
-			];
-		}
-
 		do
 		{
-			$Zone = GetPlanetState( $Planet[ 'id' ], $ZonePaces, $PreferLowZones, $WaitTime );
+			$Zone = GetPlanetState( $Planet[ 'id' ], $RandomizeZone, $WaitTime );
 		}
 		while( $Zone === null && sleep( $FailSleep ) === 0 );
 
 		if( $Zone === false )
 		{
-			$ZonePaces[ $Planet[ 'id' ] ] = [];
 			$Planet[ 'high_zones' ] = 0;
 			$Planet[ 'medium_zones' ] = 0;
 			$Planet[ 'low_zones' ] = 0;
@@ -837,11 +740,6 @@ function GetBestPlanetAndZone( &$ZonePaces, $PreferLowZones, $WaitTime, $FailSle
 
 		if( $Zone !== false )
 		{
-			foreach( $Zone[ 'messages' ] as $Message )
-			{
-				Msg( $Message[ 0 ], PHP_EOL, $Message[ 1 ] );
-			}
-
 			if( $Zone[ 'best_zone' ][ 'type' ] == 4 )
 			{
 				Msg( '{green}>> This planet has an uncaptured boss, selecting this planet...' );
@@ -865,11 +763,6 @@ function GetBestPlanetAndZone( &$ZonePaces, $PreferLowZones, $WaitTime, $FailSle
 			if( $Planet[ 'high_zones' ] > 0 )
 			{
 				$Planet[ 'sort_key' ] += pow( 10, 4 ) * ( 99 - $Planet[ 'high_zones' ] );
-			}
-
-			if( $PreferLowZones )
-			{
-				$Planet[ 'sort_key' ] *= -1;
 			}
 		}
 	}
