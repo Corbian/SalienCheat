@@ -56,11 +56,7 @@ else
 	{
 		$Token = $ParsedToken[ 'token' ];
 		$AccountID = GetAccountID( $ParsedToken[ 'steamid' ] );
-
-		Msg( 'Your SteamID is ' . $ParsedToken[ 'steamid' ] . ' - AccountID is ' . $AccountID );
 	}
-
-	unset( $ParsedToken );
 }
 
 if( strlen( $Token ) !== 32 )
@@ -93,6 +89,14 @@ $BestPlanetAndZone = 0;
 $JZErrCount = 0;
 $PreferLowZones = 0;
 
+if( isset( $ParsedToken[ 'persona_name' ] ) )
+{
+	Msg( 'Hello {green}' . $ParsedToken[ 'persona_name' ] . '{normal} !' );
+}
+else
+{
+	Msg( 'Hello !' );
+}
 Msg( "{background-blue}Welcome to SalienCheat for SteamDB" );
 
 if( ini_get( 'precision' ) < 18 )
@@ -138,6 +142,21 @@ if( isset( $_SERVER[ 'PREFER_LOW_ZONES' ] ) )
 	$PreferLowZones = (bool)$_SERVER[ 'PREFER_LOW_ZONES' ];
 }
 
+$MsgID = '';
+if( isset( $ParsedToken[ 'persona_name' ] ) )
+{
+	$MsgID .= 'Your SteamID is ' . $ParsedToken[ 'steamid' ] . ' - AccountID is ' . $AccountID;
+	unset( $ParsedToken );
+}
+Msg( $MsgID . ' - ClanID is ' . $Data[ 'response' ][ 'clan_info' ][ 'accountid' ] );
+unset( $MsgID );
+Msg(
+	'PreferLowZones is ' . number_format( $PreferLowZones ) .
+	' - IgnoreUpdates is ' . number_format( !$UpdateCheck ) .
+	' - DisableColors is ' . number_format( $DisableColors ) .
+	' - Verbose is ' . number_format( $Verbose )
+);
+
 do
 {
 	if( !$BestPlanetAndZone )
@@ -181,7 +200,10 @@ do
 
 			$BestPlanetAndZone = 0;
 
+			if( ++$JZErrCount > 2 )
+			{
 			sleep( $FailSleep );
+			}
 
 			continue;
 		}
@@ -416,6 +438,8 @@ do
 	}
 }
 while( !file_exists( __DIR__ . '/killswitch.txt' ) );
+
+exit( 0 );
 
 function CheckGameVersion( $Data )
 {
