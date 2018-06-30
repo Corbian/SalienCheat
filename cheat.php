@@ -156,10 +156,10 @@ if( isset( $_SERVER[ 'PREFER_LOW_ZONES' ] ) )
 $MsgID = '';
 if( isset( $ParsedToken[ 'persona_name' ] ) )
 {
-	$MsgID .= 'Your SteamID is ' . $ParsedToken[ 'steamid' ] . ' - AccountID is ' . $AccountID;
+	$MsgID .= 'Your SteamID is ' . $ParsedToken[ 'steamid' ] . ' - AccountID is ' . $AccountID . ' - ';
 	unset( $ParsedToken );
 }
-Msg( $MsgID . ' - ClanID is ' . $Data[ 'response' ][ 'clan_info' ][ 'accountid' ] );
+Msg( $MsgID . 'ClanID is ' . $Data[ 'response' ][ 'clan_info' ][ 'accountid' ] );
 unset( $MsgID );
 Msg(
 	'PreferLowZones is ' . number_format( $PreferLowZones ) .
@@ -399,14 +399,13 @@ do
 
 	if( empty( $Data[ 'response' ][ 'new_score' ] ) )
 	{
-		if( !empty( $Data[ 'extratime' ] ) )
+		if( isset( $Data[ 'extratime' ] ) && $Data[ 'extratime' ] > 0 )
 		{
-			$LagAdjustedWaitTime = (float)$Data[ 'extratime' ] - ( $SkippedLagTime / 2 );
-			$LagAdjustedWaitTime = $LagAdjustedWaitTime > 0 ? $LagAdjustedWaitTime : 0;
+			$LagAdjustedWaitTime = min( M_1_PI, $Data[ 'extratime' ] - ( $SkippedLagTime / 2 ) );
 		}
 		else
 		{
-			$LagAdjustedWaitTime = min( 10, round( $SkippedLagTime ) );
+			$LagAdjustedWaitTime = min( $ScanPlanetsTime, round( $SkippedLagTime ) );
 		}
 
 		Msg( '{lightred}-- Time is out of sync, trying again in ' . number_format( $LagAdjustedWaitTime, 3 ) . ' seconds...' );
@@ -980,7 +979,7 @@ function ExecuteRequest( $Method, $URL, $Data = [] )
 				if( substr( $Method, 33) === 'ReportScore' &&
 					preg_match( "/User joined zone [0-9]+ at ([0-9]+), and now it's ([0-9]+), which is too soon$/m", $Header, $ErrorTimes ) === 1 )
 				{
-					$ExtraTime = $WaitTime - ( $ErrorTimes[2] - $ErrorTimes[1] );
+					$ExtraTime = $WaitTime - ( intval( $ErrorTimes[2] ) - intval( $ErrorTimes[1] ) );
 				}
 			}
 
