@@ -119,7 +119,7 @@ do
 			Msg( '{green}-- Make sure to join{yellow} https://steamcommunity.com/groups/steamdb {green}on Steam' );
 
 			SendPOST( 'ITerritoryControlMinigameService/RepresentClan', 'clanid=4777282&access_token=' . $Token );
-			
+
 			if( isset( $Data[ 'eresult' ] ) && $Data[ 'eresult' ] === 15 ) // EResult.AccessDenied
 			{
 				echo PHP_EOL;
@@ -363,7 +363,7 @@ do
 	if( $UpdateCheck )
 	{
 		IsThereAnyUpdate( $LocalScriptHash, $LocalScriptTime, $RepositoryScriptHash, $RepositoryScriptETag, $RepositoryScriptLastCheck );
-		}
+	}
 
 	Msg( '   {teal}Waiting ' . number_format( $WaitTimeBeforeFirstScan, 3 ) . ' seconds before rescanning planets...' );
 
@@ -399,11 +399,19 @@ do
 
 	if( empty( $Data[ 'response' ][ 'new_score' ] ) )
 	{
-		$LagAdjustedWaitTime = min( 10, round( $SkippedLagTime ) );
+		if( !empty( $Data[ 'extratime' ] ) )
+		{
+			$LagAdjustedWaitTime = (float)$Data[ 'extratime' ] - ( $SkippedLagTime / 2 );
+			$LagAdjustedWaitTime = $LagAdjustedWaitTime > 0 ? $LagAdjustedWaitTime : 0;
+		}
+		else
+		{
+			$LagAdjustedWaitTime = min( 10, round( $SkippedLagTime ) );
+		}
 
-		Msg( '{lightred}-- Time is out of sync, trying again in ' . $LagAdjustedWaitTime . ' seconds...' );
+		Msg( '{lightred}-- Time is out of sync, trying again in ' . number_format( $LagAdjustedWaitTime, 3 ) . ' seconds...' );
 
-		sleep( $LagAdjustedWaitTime );
+		usleep( $LagAdjustedWaitTime * 1000000 );
 
 		$Data = SendPOST( 'ITerritoryControlMinigameService/ReportScore', 'access_token=' . $Token . '&score=' . GetScoreForZone( $Zone ) . '&language=english' );
 	}
@@ -960,6 +968,7 @@ function ExecuteRequest( $Method, $URL, $Data = [] )
 
 		preg_match( '/[Xx]-eresult: ([0-9]+)/', $Header, $EResult ) === 1 ? $EResult = (int)$EResult[ 1 ] : $EResult = 0;
 
+		$ExtraTime = 0;
 		if( $EResult !== 1 )
 		{
 			Msg( '{lightred}!! ' . $Method . ' failed - EResult: ' . $EResult . ' - ' . $Data );
@@ -967,6 +976,12 @@ function ExecuteRequest( $Method, $URL, $Data = [] )
 			if( preg_match( '/^[Xx]-error_message: (?:.+)$/m', $Header, $ErrorMessage ) === 1 )
 			{
 				Msg( '{lightred}!! API failed - ' . $ErrorMessage[ 0 ] );
+
+				if( substr( $Method, 33) === 'ReportScore' &&
+					preg_match( "/User joined zone [0-9]+ at ([0-9]+), and now it's ([0-9]+), which is too soon$/m", $Header, $ErrorTimes ) === 1 )
+				{
+					$ExtraTime = $WaitTime - ( $ErrorTimes[2] - $ErrorTimes[1] );
+				}
 			}
 
 //			if( $EResult === 15 && substr( $Method, 33) === 'RepresentClan' )  // EResult.AccessDenied
