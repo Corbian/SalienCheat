@@ -119,6 +119,17 @@ do
 			Msg( '{green}-- Make sure to join{yellow} https://steamcommunity.com/groups/steamdb {green}on Steam' );
 
 			SendPOST( 'ITerritoryControlMinigameService/RepresentClan', 'clanid=4777282&access_token=' . $Token );
+			
+			if( isset( $Data[ 'eresult' ] ) && $Data[ 'eresult' ] === 15 ) // EResult.AccessDenied
+			{
+				echo PHP_EOL;
+
+				Msg( '{green}This script was designed for SteamDB' );
+				Msg( '{green}If you want to support it, join the group and represent it in game:' );
+				Msg( '{yellow}https://steamcommunity.com/groups/SteamDB' );
+
+				sleep( 10 );
+			}
 		}
 		else if( $Data[ 'response' ][ 'clan_info' ][ 'accountid' ] != 4777282 )
 		{
@@ -958,17 +969,8 @@ function ExecuteRequest( $Method, $URL, $Data = [] )
 				Msg( '{lightred}!! API failed - ' . $ErrorMessage[ 0 ] );
 			}
 
-			if( $EResult === 15 && $Method === 'ITerritoryControlMinigameService/RepresentClan' )  // EResult.AccessDenied
-			{
-				echo PHP_EOL;
-
-				Msg( '{green}This script was designed for SteamDB' );
-				Msg( '{green}If you want to support it, join the group and represent it in game:' );
-				Msg( '{yellow}https://steamcommunity.com/groups/SteamDB' );
-
-				sleep( 10 );
-			}
-			else if( $EResult === 11 ) // EResult.InvalidState
+//			if( $EResult === 15 && substr( $Method, 33) === 'RepresentClan' )  // EResult.AccessDenied
+			if( $EResult === 11 ) // EResult.InvalidState
 			{
 				global $LastKnownPlanet;
 				$LastKnownPlanet = 0;
