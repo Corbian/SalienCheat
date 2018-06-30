@@ -405,14 +405,21 @@ do
 
 	if( empty( $Data[ 'response' ][ 'new_score' ] ) )
 	{
-		if( isset( $Data[ 'extratime' ] ) && $Data[ 'extratime' ] >= 0 )
+		if( isset( $Data[ 'extratime' ] ) )
 		{
-			$LagAdjustedWaitTime = $Data[ 'extratime' ] - ( $SkippedLagTime / 2 );
-			$LagAdjustedWaitTime = $LagAdjustedWaitTime > 0 ? min( $ScanPlanetsTime, $LagAdjustedWaitTime ) : min( $ScanPlanetsTime, $SkippedLagTime );
+			$LagAdjustedWaitTime = $Data[ 'extratime' ] - $SkippedLagTime;
+			if( $LagAdjustedWaitTime > 0 )
+			{
+				$LagAdjustedWaitTime = min( $ScanPlanetsTime, $LagAdjustedWaitTime, $Data[ 'extratime' ] );
 		}
 		else
 		{
-			$LagAdjustedWaitTime = min( $ScanPlanetsTime, ( $SkippedLagTime / 2 ) );
+				$LagAdjustedWaitTime = min( $ScanPlanetsTime, $SkippedLagTime, $Data[ 'extratime' ] );
+			}
+		}
+		else
+		{
+			$LagAdjustedWaitTime = min( $ScanPlanetsTime, $SkippedLagTime );
 		}
 
 		Msg( '{lightred}-- Time is out of sync, trying again in ' . number_format( $LagAdjustedWaitTime, 3 ) . ' seconds...' );
@@ -950,6 +957,8 @@ function GetCurl( )
 
 function ExecuteRequest( $Method, $URL, $Data = [] )
 {
+	global $WaitTime;
+
 	$c = GetCurl( );
 
 	curl_setopt( $c, CURLOPT_URL, $URL );
@@ -974,7 +983,7 @@ function ExecuteRequest( $Method, $URL, $Data = [] )
 
 		preg_match( '/[Xx]-eresult: ([0-9]+)/', $Header, $EResult ) === 1 ? $EResult = (int)$EResult[ 1 ] : $EResult = 0;
 
-		$ExtraTime = -1.0;
+		$ExtraTime = -1;
 		if( $EResult !== 1 )
 		{
 			Msg( '{lightred}!! ' . $Method . ' failed - EResult: ' . $EResult . ' - ' . $Data );
@@ -984,7 +993,7 @@ function ExecuteRequest( $Method, $URL, $Data = [] )
 				Msg( '{lightred}!! API failed - ' . $ErrorMessage[ 0 ] );
 
 				if( substr( $Method, 33) === 'ReportScore' &&
-					preg_match( "/User joined zone [0-9]+ at ([0-9]+), and now it's ([0-9]+), which is too soon$/m", $Header, $ErrorTimes ) === 1 )
+					preg_match( "/User joined zone [0-9]+ at ([0-9]+), and now it's ([0-9]+), which is too soon/", $ErrorMessage[ 0 ], $ErrorTimes ) === 1 )
 				{
 					$ExtraTime = $WaitTime - ( intval( $ErrorTimes[2] ) - intval( $ErrorTimes[1] ) );
 				}
@@ -1012,7 +1021,10 @@ function ExecuteRequest( $Method, $URL, $Data = [] )
 
 		$Data = json_decode( $Data, true );
 		$Data[ 'eresult' ] = $EResult;
-		$Data[ 'extratime' ] = $ExtraTime;
+		if( $ExtraTime >= 0 )
+		{
+			$Data[ 'extratime' ] = $ExtraTime;
+		}
 	}
 	while( !isset( $Data[ 'response' ] ) && sleep( 2 ) === 0 );
 
