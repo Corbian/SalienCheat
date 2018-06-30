@@ -401,11 +401,12 @@ do
 	{
 		if( isset( $Data[ 'extratime' ] ) && $Data[ 'extratime' ] >= 0 )
 		{
-			$LagAdjustedWaitTime = min( M_1_PI, abs( $Data[ 'extratime' ] - ( $SkippedLagTime / 2 ) ) );
+			$LagAdjustedWaitTime = $Data[ 'extratime' ] - ( $SkippedLagTime / 2 );
+			$LagAdjustedWaitTime = $LagAdjustedWaitTime > 0 ? min( $ScanPlanetsTime, $LagAdjustedWaitTime ) : min( $ScanPlanetsTime, $SkippedLagTime );
 		}
 		else
 		{
-			$LagAdjustedWaitTime = min( $ScanPlanetsTime, round( $SkippedLagTime ) );
+			$LagAdjustedWaitTime = min( $ScanPlanetsTime, $SkippedLagTime );
 		}
 
 		Msg( '{lightred}-- Time is out of sync, trying again in ' . number_format( $LagAdjustedWaitTime, 3 ) . ' seconds...' );
