@@ -129,10 +129,6 @@ do
 		{
 			$PreferLowZones = 1;
 		}
-		else if( $Data[ 'response' ][ 'level' ] > 15 )
-		{
-			$PreferLowZones = rand( 0, 1 );
-		}
 	}
 }
 while( !isset( $Data[ 'response' ][ 'score' ] ) && sleep( $FailSleep ) === 0 );
@@ -412,6 +408,11 @@ do
 			'{normal} - Remaining: {yellow}' . number_format( $Data[ 'next_level_score' ] - $Data[ 'new_score' ] ) .
 			'{normal} - ETA: {green}' . $Hours . 'h ' . $Minutes . 'm (' . date_format( $Date , "jS H:i T" ) . ')'
 		);
+
+		if( $Data[ 'new_level' ] > 20 && !isset( $_SERVER[ 'PREFER_LOW_ZONES' ] ) )
+		{
+			$PreferLowZones = 1;
+		}
 	}
 }
 while( !file_exists( __DIR__ . '/killswitch.txt' ) );
