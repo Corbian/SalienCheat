@@ -399,9 +399,9 @@ do
 
 	if( empty( $Data[ 'response' ][ 'new_score' ] ) )
 	{
-		if( isset( $Data[ 'extratime' ] ) && $Data[ 'extratime' ] > 0 )
+		if( isset( $Data[ 'extratime' ] ) && $Data[ 'extratime' ] >= 0 )
 		{
-			$LagAdjustedWaitTime = min( M_1_PI, $Data[ 'extratime' ] - ( $SkippedLagTime / 2 ) );
+			$LagAdjustedWaitTime = min( M_1_PI, abs( $Data[ 'extratime' ] - ( $SkippedLagTime / 2 ) ) );
 		}
 		else
 		{
@@ -967,7 +967,7 @@ function ExecuteRequest( $Method, $URL, $Data = [] )
 
 		preg_match( '/[Xx]-eresult: ([0-9]+)/', $Header, $EResult ) === 1 ? $EResult = (int)$EResult[ 1 ] : $EResult = 0;
 
-		$ExtraTime = 0;
+		$ExtraTime = -1.0;
 		if( $EResult !== 1 )
 		{
 			Msg( '{lightred}!! ' . $Method . ' failed - EResult: ' . $EResult . ' - ' . $Data );
