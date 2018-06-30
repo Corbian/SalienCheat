@@ -2,6 +2,8 @@
 <?php
 
 set_time_limit( 0 );
+error_reporting( -1 );
+ini_set( 'display_errors', '1' );
 
 $DisableColors = isset( $_SERVER[ 'DISABLE_COLORS' ] ) ? (bool)$_SERVER[ 'DISABLE_COLORS' ] : !IsColorSupported( );
 $COLORS_HINTS =
@@ -17,11 +19,19 @@ $GetANSISeqs = $DisableColors ? function( ) { return ''; } :
 	function( ) { global $COLORS_HINTS; return array_values( $COLORS_HINTS ); }
 ;
 
+Msg( "{background-blue}Welcome to SalienCheat for SteamDB" );
+
+if( ini_get( 'precision' ) < 18 )
+{
+	Msg( '{teal}Fixed php float precision (was ' . ini_get( 'precision' ) . ')' );
+	ini_set( 'precision', '18' );
+}
+
 $Verbose = isset( $_SERVER[ 'VERBOSE' ] ) ? (bool)$_SERVER[ 'VERBOSE' ] : 0;
 
 if( !file_exists( __DIR__ . '/cacert.pem' ) )
 {
-	Msg( 'You forgot to download cacert.pem file' );
+	Msg( '{lightred}You forgot to download cacert.pem file' );
 	exit( 1 );
 }
 
@@ -36,11 +46,15 @@ if( $argc > 1 )
 	{
 		$AccountID = $argv[ 2 ];
 	}
+	
+	Msg( 'Your AccountID is {teal}' . $AccountID );
 }
 else if( isset( $_SERVER[ 'TOKEN' ] ) )
 {
 	// if the token was provided as an env var, use it
 	$Token = $_SERVER[ 'TOKEN' ];
+	
+	Msg( 'Your AccountID is {teal}' . $AccountID );
 }
 else
 {
@@ -56,12 +70,21 @@ else
 	{
 		$Token = $ParsedToken[ 'token' ];
 		$AccountID = GetAccountID( $ParsedToken[ 'steamid' ] );
+
+		Msg( 'Hello {green}' . $ParsedToken[ 'persona_name' ] . '{normal} ! Your SteamID is {teal}' . $ParsedToken[ 'steamid' ] . '{normal} - AccountID is {teal}' . $AccountID );
+
+		if( $AccountID == 0 && $ParsedToken[ 'steamid' ] > 0 )
+		{
+			Msg( '{lightred}Looks like you are using 32bit PHP. Try enabling "gmp" module for correct accountid calculation.' );
+		}
 	}
+
+	unset( $ParsedToken );
 }
 
 if( strlen( $Token ) !== 32 )
 {
-	Msg( 'Failed to find your token. Verify token.txt' );
+	Msg( '{lightred}Failed to find your token. Verify token.txt' );
 	exit( 1 );
 }
 
@@ -88,22 +111,6 @@ $LastKnownPlanet = 0;
 $BestPlanetAndZone = 0;
 $JZErrCount = 0;
 $PreferLowZones = 0;
-
-if( isset( $ParsedToken[ 'persona_name' ] ) )
-{
-	Msg( 'Hello {green}' . $ParsedToken[ 'persona_name' ] . '{normal} !' );
-}
-else
-{
-	Msg( 'Hello !' );
-}
-Msg( "{background-blue}Welcome to SalienCheat for SteamDB" );
-
-if( ini_get( 'precision' ) < 18 )
-{
-	Msg( '{teal}Fixed php float precision (was ' . ini_get( 'precision' ) . ')' );
-	ini_set( 'precision', '18' );
-}
 
 do
 {
@@ -139,6 +146,10 @@ do
 			Msg( '{green}--{yellow} https://steamcommunity.com/saliengame/play' );
 			Msg( '{green}-- Happy farming!' );
 		}
+		else
+		{
+			Msg( 'SteamDB ClanID is ' . $Data[ 'response' ][ 'clan_info' ][ 'accountid' ] );
+		}
 
 		if( $Data[ 'response' ][ 'level' ] > 20 )
 		{
@@ -153,14 +164,6 @@ if( isset( $_SERVER[ 'PREFER_LOW_ZONES' ] ) )
 	$PreferLowZones = (bool)$_SERVER[ 'PREFER_LOW_ZONES' ];
 }
 
-$MsgID = '';
-if( isset( $ParsedToken[ 'persona_name' ] ) )
-{
-	$MsgID .= 'Your SteamID is ' . $ParsedToken[ 'steamid' ] . ' - AccountID is ' . $AccountID . ' - ';
-	unset( $ParsedToken );
-}
-Msg( $MsgID . 'ClanID is ' . $Data[ 'response' ][ 'clan_info' ][ 'accountid' ] );
-unset( $MsgID );
 Msg(
 	'PreferLowZones is ' . number_format( $PreferLowZones ) .
 	' - IgnoreUpdates is ' . number_format( !$UpdateCheck ) .
@@ -213,7 +216,7 @@ do
 
 			if( ++$JZErrCount > 2 )
 			{
-			sleep( $FailSleep );
+				sleep( $FailSleep );
 			}
 
 			continue;
@@ -588,8 +591,8 @@ function GetPlanetState( $Planet, &$ZonePaces, $PreferLowZones, $WaitTime )
 			$BossZones[] = $Zone;
 		}
 
-		// Skip zone 0 if it's not a boss and has no capture progress, since it's currently not allowing joins on new planets.
-		if ( $Zone[ 'zone_position' ] == 0 && $Zone[ 'capture_progress' ] < 5 )
+		// Skip zone 0 if it's not a boss, since it's currently not allowing joins on new planets.
+		if ( $Zone[ 'zone_position' ] == 0 )
 		{
 			continue;
 		}
@@ -1006,6 +1009,7 @@ function ExecuteRequest( $Method, $URL, $Data = [] )
 
 		$Data = json_decode( $Data, true );
 		$Data[ 'eresult' ] = $EResult;
+		$Data[ 'extratime' ] = $ExtraTime;
 	}
 	while( !isset( $Data[ 'response' ] ) && sleep( 2 ) === 0 );
 
@@ -1062,10 +1066,11 @@ function IsThereAnyUpdate( &$LocalScriptHash, &$LocalScriptTime, &$RepositoryScr
 	$LocalScriptHash = strlen( $LocalScriptHash ) !== 40 ? sha1_file( __FILE__ ) : $LocalScriptHash;
 	$RepositoryScriptHash = strlen( $RepositoryScriptHash ) !== 40 ? $LocalScriptHash : $RepositoryScriptHash;
 
-	if( $LocalScriptHash === $RepositoryScriptHash || microtime( true ) - $RepositoryScriptLastCheck > 1800 )
+	if( $LocalScriptHash === $RepositoryScriptHash && microtime( true ) - $RepositoryScriptLastCheck > 1800 )
 	{
 		$RepositoryScriptHash = GetRepositoryScriptHash( $RepositoryScriptETag, $LocalScriptHash );
 		$RepositoryScriptLastCheck = microtime( true );
+		Msg( '{teal}Local reference script hash is ' . substr( $LocalScriptHash, 0, 8 ) . ' - Repository script hash is ' . substr( $RepositoryScriptHash, 0, 8 ) );
 	}
 
 	if( $LocalScriptHash !== $RepositoryScriptHash )
@@ -1080,9 +1085,9 @@ function IsColorSupported( )
 	{
 		return (
 			( function_exists( 'sapi_windows_vt100_support' ) && sapi_windows_vt100_support( STDOUT ) ) ||
-			( isset( $_SERVER[ 'ANSICON' ] ) && (bool)$_SERVER[ 'ANSICON' ] ) ||
-			( isset( $_SERVER[ 'ConEmuANSI' ] ) && $_SERVER[ 'ConEmuANSI' ] === 'ON' ) ||
-			( isset( $_SERVER[ 'TERM' ] ) && $_SERVER[ 'TERM' ] === 'xterm' )
+			( false !== (bool)getenv( 'ANSICON' ) ) ||
+			( getenv( 'ConEmuANSI' ) === 'ON' ) ||
+			( substr( getenv( 'TERM' ), 0, 5 ) === 'xterm' )
 		);
 	}
 	else
@@ -1123,7 +1128,7 @@ function Msg( $Message, $EOL = PHP_EOL, $printf = [] )
 
 	if( $Count > 0 )
 	{
-		$Message .= $GetANSISeqs( )[0]; // gives '' or $COLORS_HINTS['{normal}']
+		$Message .= $GetANSISeqs( )[ 0 ]; // gives ''[ 0 ] or $COLORS_HINTS[ '{normal}' ]
 	}
 
 	$Message = '[' . date( 'H:i:s' ) . '] ' . $Message . $EOL;
