@@ -115,7 +115,6 @@ $OldScore = 0;
 $LastKnownPlanet = 0;
 $BestPlanetAndZone = 0;
 $JZErrCount = 0;
-$HasReachedMaxLevel = 0;
 
 do
 {
@@ -155,18 +154,6 @@ do
 		{
 			Msg( 'SteamDB ClanID is {teal}' . $Data[ 'response' ][ 'clan_info' ][ 'accountid' ] );
 		}
-
-		// Randomizer is here to help reduce load on Steam servers
-		// Zones are sharded, and if everyone targets the same zone, it ends up worse for everyone
-		// By giving errors like time not synced or failed to join.
-		// Everyone at level 25 is already at the max level
-		// So please don't change this and let's get this mini game over with
-		if( $Data[ 'response' ][ 'level' ] >= 25 )
-		{
-			$HasReachedMaxLevel = 1;
-
-			Msg( '{yellow}-- You have reached the max level, you will be helping others reach it faster' );
-		}
 	}
 }
 while( !isset( $Data[ 'response' ][ 'score' ] ) && sleep( $FailSleep ) === 0 );
@@ -179,7 +166,7 @@ do
 	{
 		do
 		{
-			$BestPlanetAndZone = GetBestPlanetAndZone( $HasReachedMaxLevel, $WaitTime, $FailSleep );
+			$BestPlanetAndZone = GetBestPlanetAndZone( $WaitTime, $FailSleep );
 		}
 		while( !$BestPlanetAndZone && sleep( $FailSleep ) === 0 );
 	}
@@ -229,7 +216,6 @@ do
 
 		$BossFailsAllowed = 10;
 		$NextHeal = PHP_INT_MAX;
-		$DidBossDamage = false;
 		$WaitingForPlayers = true;
 		$MyScoreInBoss = 0;
 		$BossEstimate =
@@ -245,17 +231,7 @@ do
 		{
 			$Time = microtime( true );
 			$UseHeal = 0;
-			// People at max level practically do not benefit from extra xp
-			// So doing zero damage should prolong the boss battle and help others reach max level
-			// Bonus XP should still be granted at the end of the boss battle
-			// And idlers will help others by using the heal ability
-			$DamageToBoss = 0;
-
-			if( !$WaitingForPlayers )
-			{
-				$DamageToBoss = $HasReachedMaxLevel && $DidBossDamage ? 0 : 1;
-				$DidBossDamage = true;
-			}
+			$DamageToBoss = $WaitingForPlayers ? 0 : 1;
 
 			$DamageTaken = 0;
 
@@ -469,7 +445,7 @@ do
 
 	do
 	{
-		$BestPlanetAndZone = GetBestPlanetAndZone( $HasReachedMaxLevel, $WaitTime, $FailSleep );
+		$BestPlanetAndZone = GetBestPlanetAndZone( $WaitTime, $FailSleep );
 	}
 	while( !$BestPlanetAndZone && sleep( $FailSleep ) === 0 );
 
@@ -544,11 +520,6 @@ do
 				'>> Next Level: {yellow}' . number_format( $Data[ 'next_level_score' ] ) .
 				'{normal} - Remaining: {yellow}' . number_format( $Data[ 'next_level_score' ] - $Data[ 'new_score' ] )
 			);
-		}
-
-		if( $Data[ 'new_level' ] >= 25 )
-		{
-			$HasReachedMaxLevel = 1;
 		}
 	}
 }
@@ -660,7 +631,7 @@ function GetNameForDifficulty( $Zone )
 	return $Boss . $Difficulty;
 }
 
-function GetPlanetState( $Planet, $HasReachedMaxLevel, $WaitTime )
+function GetPlanetState( $Planet, $WaitTime )
 {
 	$Zones = SendGET( 'ITerritoryControlMinigameService/GetPlanet', 'id=' . $Planet . '&language=english' );
 
@@ -745,7 +716,7 @@ function GetPlanetState( $Planet, $HasReachedMaxLevel, $WaitTime )
 	];
 }
 
-function GetBestPlanetAndZone( $HasReachedMaxLevel, $WaitTime, $FailSleep )
+function GetBestPlanetAndZone( $WaitTime, $FailSleep )
 {
 	$Planets = SendGET( 'ITerritoryControlMinigameService/GetPlanets', 'active_only=1&language=english' );
 
@@ -790,7 +761,7 @@ function GetBestPlanetAndZone( $HasReachedMaxLevel, $WaitTime, $FailSleep )
 
 		do
 		{
-			$Zone = GetPlanetState( $Planet[ 'id' ], $HasReachedMaxLevel, $WaitTime );
+			$Zone = GetPlanetState( $Planet[ 'id' ], $WaitTime );
 		}
 		while( $Zone === null && sleep( $FailSleep ) === 0 );
 
@@ -831,35 +802,19 @@ function GetBestPlanetAndZone( $HasReachedMaxLevel, $WaitTime, $FailSleep )
 				return $Planet;
 			}
 
-			if( $HasReachedMaxLevel )
+			if( $Planet[ 'low_zones' ] > 0 )
 			{
-				if( $Planet[ 'state' ][ 'capture_progress' ] > 0.98 )
-				{
-					// Only prefer planets over 98% if there's no other more complete choice
-					$Planet[ 'sort_key' ] += 5000;
-				}
-				else
-				{
-					// Simply always prefer the most complete planet
-					$Planet[ 'sort_key' ] += (int)( $Planet[ 'state' ][ 'capture_progress' ] * 10000 );
-				}
+				$Planet[ 'sort_key' ] += 99 - $Planet[ 'low_zones' ];
 			}
-			else
+
+			if( $Planet[ 'medium_zones' ] > 0 )
 			{
-				if( $Planet[ 'low_zones' ] > 0 )
-				{
-					$Planet[ 'sort_key' ] += 99 - $Planet[ 'low_zones' ];
-				}
+				$Planet[ 'sort_key' ] += pow( 10, 2 ) * ( 99 - $Planet[ 'medium_zones' ] );
+			}
 
-				if( $Planet[ 'medium_zones' ] > 0 )
-				{
-					$Planet[ 'sort_key' ] += pow( 10, 2 ) * ( 99 - $Planet[ 'medium_zones' ] );
-				}
-
-				if( $Planet[ 'high_zones' ] > 0 )
-				{
-					$Planet[ 'sort_key' ] += pow( 10, 4 ) * ( 99 - $Planet[ 'high_zones' ] );
-				}
+			if( $Planet[ 'high_zones' ] > 0 )
+			{
+				$Planet[ 'sort_key' ] += pow( 10, 4 ) * ( 99 - $Planet[ 'high_zones' ] );
 			}
 		}
 	}
