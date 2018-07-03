@@ -94,19 +94,6 @@ if( strlen( $Token ) !== 32 )
 	exit( 1 );
 }
 
-if( isset( $_SERVER[ 'IGNORE_UPDATES' ] ) && (bool)$_SERVER[ 'IGNORE_UPDATES' ] )
-{
-	$UpdateCheck = false;
-}
-else
-{
-	$UpdateCheck = true;
-	$LocalScriptTime = 0;
-	$RepositoryScriptLastCheck = 0.0;
-	$LocalScriptHash = $RepositoryScriptHash = $RepositoryScriptETag = '';
-	IsThereAnyUpdate( $LocalScriptHash, $LocalScriptTime, $RepositoryScriptHash, $RepositoryScriptETag, $RepositoryScriptLastCheck );
-}
-
 $GameVersion = 2;
 $WaitTime = 110;
 $ScanPlanetsTime = 5; // expected duration
@@ -433,11 +420,6 @@ do
 	$SkippedLagTime -= fmod( $SkippedLagTime, 0.1 );
 	$LagAdjustedWaitTime = $WaitTime - $SkippedLagTime;
 	$WaitTimeBeforeFirstScan = $WaitTime - $SkippedLagTime - $ScanPlanetsTime;
-
-	if( $UpdateCheck )
-	{
-		IsThereAnyUpdate( $LocalScriptHash, $LocalScriptTime, $RepositoryScriptHash, $RepositoryScriptETag, $RepositoryScriptLastCheck );
-	}
 
 	Msg( '   {teal}Waiting ' . number_format( $WaitTimeBeforeFirstScan, 3 ) . ' seconds before rescanning planets...' );
 
@@ -1037,35 +1019,6 @@ function GetRepositoryScriptHash( &$RepositoryScriptETag, $LocalScriptHash )
 	}
 
 	return strlen( $Data ) > 0 ? sha1( $Data ) : $LocalScriptHash;
-}
-
-function IsThereAnyUpdate( &$LocalScriptHash, &$LocalScriptTime, &$RepositoryScriptHash, &$RepositoryScriptETag, &$RepositoryScriptLastCheck )
-{
-	clearstatcache( true, __FILE__ . '.sha1' );
-	$NewTime = filemtime( __FILE__ . '.sha1' );
-	if( $NewTime !== $LocalScriptTime )
-	{
-		$LocalScriptTime = $NewTime;
-		$LocalScriptHash = substr( ltrim( file_get_contents( __FILE__ . '.sha1' ) ), 0, 40);
-	}
-	$LocalScriptHash = strlen( $LocalScriptHash ) !== 40 ? sha1_file( __FILE__ ) : $LocalScriptHash;
-	$RepositoryScriptHash = strlen( $RepositoryScriptHash ) !== 40 ? $LocalScriptHash : $RepositoryScriptHash;
-
-	if( $LocalScriptHash === $RepositoryScriptHash && microtime( true ) - $RepositoryScriptLastCheck > 1800 )
-	{
-		$RepositoryScriptHash = GetRepositoryScriptHash( $RepositoryScriptETag, $LocalScriptHash );
-		$RepositoryScriptLastCheck = microtime( true );
-		Msg(
-			'Local reference script hash is {teal}' . substr( $LocalScriptHash, 0, 8 ) .
-			'{normal} - Repository script hash is {teal}' . substr( $RepositoryScriptHash, 0, 8 ) .
-			'{normal} - Next check after {teal}' . date( 'H:i', ( $RepositoryScriptLastCheck + 1800 ) )
-		);
-	}
-
-	if( $LocalScriptHash !== $RepositoryScriptHash )
-	{
-		Msg( '-- {lightred}Script has been updated on GitHub since you started this script, please make sure to update.' );
-	}
 }
 
 function IsColorSupported( )
